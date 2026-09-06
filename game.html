@@ -96,7 +96,6 @@ input {
   font-weight: bold;
   cursor: pointer;
 }
-/* 大號全寬廣東話語音按鈕 */
 .btn-voice {
   width: 100%;
   background: #2e7d32 !important;
@@ -145,14 +144,31 @@ button:disabled {
     <button id="sendBtn" class="btn-send" onclick="submitWord()" disabled>送出</button>
   </div>
 
-  <!-- 語音按鈕放大並移至最顯眼位置 -->
   <button id="voiceBtn" class="btn-voice" onclick="toggleVoice()" disabled>🎤 按此廣東話語音輸入</button>
 
   <div id="status" class="status">準備就緒</div>
 </div>
 
 <script>
-const baseWords = ["口水", "水花", "花朵", "太陽", "陽光", "光明", "明月", "月亮", "蘋果", "果汁", "天空", "空氣", "氣球", "香港", "港口", "廣東", "廣州"];
+// 擴充廣東話日常生活常用詞庫
+const baseWords = [
+  // 地點與地理
+  "香港", "港口", "廣東", "廣州", "九龍", "旺角", "中環", "天星", "碼頭",
+  "機場", "車站", "站立", "公園", "園林", "林木", "市場", "場地", "地方",
+  // 飲食與美食
+  "奶茶", "茶餐廳", "蛋撻", "撻沙", "燒鵝", "鵝肉", "牛肉", "肉包",
+  "包子", "點心", "心意", "意思", "蘋果", "果汁", "汁液", "雪糕",
+  "糕點", "西餅", "餅乾", "乾麵", "麵條", "豆腐", "腐竹", "竹筍",
+  // 交通與生活用品
+  "巴士", "士多", "電車", "車票", "票價", "價格", "格子", "子彈",
+  "電話", "話筒", "冷氣", "氣球", "球場", "衣服", "服裝", "鞋子",
+  // 天氣與自然
+  "太陽", "陽光", "光明", "明月", "月亮", "天空", "空氣", "水花",
+  "花朵", "朵朵", "口水", "水晶", "晶晶", "樹木", "木頭", "頭髮",
+  // 學習與日常
+  "小學", "學生", "生活", "活潑", "方向", "發展", "展覽", "立刻"
+];
+
 let words = [...baseWords];
 let chain = [];
 let usedWords = new Set();
@@ -162,7 +178,6 @@ let timer = null;
 let recognition = null;
 let isListening = false;
 
-// 語音辨識設定
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SR) {
   recognition = new SR();
@@ -276,19 +291,16 @@ function submitWord() {
   let val = document.getElementById('wordInput').value.trim();
   let lastChar = chain[chain.length - 1].slice(-1);
 
-  // 1. 檢查是否輸入空值或太短
   if (!val || val.length < 2) {
     gameOver("詞語太短！必須為最少 2 個字的詞語。");
     return;
   }
 
-  // 2. 檢查字頭是否符合接龍規則
   if (val.charAt(0) !== lastChar) {
     gameOver("接錯字！「" + val + "」並非由「" + lastChar + "」字開頭。");
     return;
   }
 
-  // 3. 檢查是否重複使用
   if (usedWords.has(val)) {
     gameOver("詞語重複！「" + val + "」之前已經講過啦。");
     return;
@@ -353,164 +365,9 @@ function gameOver(reason) {
   
   document.getElementById('status').innerText = "💥 遊戲結束！" + reason;
   
-  // 語音宣告失敗原因
   let msg = new SpeechSynthesisUtterance("遊戲結束！" + reason);
   msg.lang = 'zh-HK';
   window.speechSynthesis.speak(msg);
-}
-</script>
-
-</body>
-</html>
-    <button id="voiceBtn" class="btn-voice" onclick="toggleVoice()" disabled>🎤 語音</button>
-  </div>
-
-  <button id="startBtn" class="btn-start" onclick="startGame()">開始遊戲</button>
-  <div id="status" class="status">準備就緒</div>
-</div>
-
-<script>
-const words = ["口水", "水花", "花朵", "太陽", "陽光", "光明", "明月", "月亮", "蘋果", "果汁", "天空", "空氣", "氣球", "香港", "港口"];
-let chain = [];
-let score = 0;
-let isPlayerTurn = false;
-let timer = null;
-let recognition = null;
-
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR) {
-  recognition = new SR();
-  recognition.lang = 'zh-HK';
-  recognition.onresult = function(e) {
-    let text = e.results[0][0].transcript.replace(/[。，！？\s]/g, '');
-    document.getElementById('wordInput').value = text;
-    submitWord();
-  };
-}
-
-function formatTail(w) { return w + '個' + w.slice(-1); }
-
-function readChain(callback) {
-  window.speechSynthesis.cancel();
-  let text = chain.map(formatTail).join("，");
-  let msg = new SpeechSynthesisUtterance(text);
-  msg.lang = 'zh-HK';
-  msg.onend = function() { if(callback) callback(); };
-  msg.onerror = function() { if(callback) callback(); };
-  window.speechSynthesis.speak(msg);
-}
-
-function updateDisplay() {
-  let html = "";
-  for (let i = 0; i < chain.length; i++) {
-    let role = (i % 2 === 0) ? "[電腦]" : "[玩家]";
-    html += "<div>" + role + " " + formatTail(chain[i]) + "</div>";
-  }
-  let box = document.getElementById('box');
-  box.innerHTML = html;
-  box.scrollTop = box.scrollHeight;
-}
-
-function startGame() {
-  score = 0;
-  chain = [];
-  document.getElementById('score').innerText = score;
-  document.getElementById('startBtn').disabled = true;
-
-  let first = words[Math.floor(Math.random() * words.length)];
-  chain.push(first);
-
-  updateDisplay();
-  document.getElementById('status').innerText = "AI 由頭朗讀中...";
-  readChain(function() { nextTurn(); });
-}
-
-function nextTurn() {
-  isPlayerTurn = true;
-  let lastChar = chain[chain.length - 1].slice(-1);
-  document.getElementById('status').innerText = "輪到你！請接「" + lastChar + "」字（5秒）";
-  
-  let input = document.getElementById('wordInput');
-  input.disabled = false;
-  input.value = "";
-  input.focus();
-  
-  document.getElementById('sendBtn').disabled = false;
-  document.getElementById('voiceBtn').disabled = false;
-
-  startTimer(5, function() { gameOver("時間到！"); });
-}
-
-function submitWord() {
-  if (!isPlayerTurn) return;
-  let val = document.getElementById('wordInput').value.trim();
-  let lastChar = chain[chain.length - 1].slice(-1);
-
-  if (!val || val.charAt(0) !== lastChar) {
-    document.getElementById('status').innerText = "接錯了！要由「" + lastChar + "」開頭";
-    return;
-  }
-
-  stopTimer();
-  disableInputs();
-  isPlayerTurn = false;
-
-  score++;
-  document.getElementById('score').innerText = score;
-  chain.push(val);
-  updateDisplay();
-
-  document.getElementById('status').innerText = "答對！AI 由頭朗讀中...";
-  readChain(function() { aiTurn(); });
-}
-
-function aiTurn() {
-  let lastChar = chain[chain.length - 1].slice(-1);
-  let next = words.find(w => w.startsWith(lastChar)) || (lastChar + "子");
-  
-  chain.push(next);
-  updateDisplay();
-  document.getElementById('status').innerText = "電腦接：「" + next + "」，AI 朗讀中...";
-  readChain(function() { nextTurn(); });
-}
-
-function toggleVoice() {
-  if (recognition && isPlayerTurn) {
-    try { recognition.start(); } catch(e){}
-  }
-}
-
-function startTimer(sec, onTimeout) {
-  stopTimer();
-  let bar = document.getElementById('bar');
-  bar.style.width = '100%';
-  let start = Date.now();
-  
-  timer = setInterval(function() {
-    let passed = (Date.now() - start) / 1000;
-    let left = Math.max(0, 100 - (passed / sec * 100));
-    bar.style.width = left + '%';
-    if (passed >= sec) { stopTimer(); onTimeout(); }
-  }, 100);
-}
-
-function stopTimer() {
-  if (timer) clearInterval(timer);
-  document.getElementById('bar').style.width = '0%';
-}
-
-function disableInputs() {
-  document.getElementById('wordInput').disabled = true;
-  document.getElementById('sendBtn').disabled = true;
-  document.getElementById('voiceBtn').disabled = true;
-}
-
-function gameOver(msg) {
-  stopTimer();
-  disableInputs();
-  isPlayerTurn = false;
-  document.getElementById('status').innerText = "💥 遊戲結束！" + msg;
-  document.getElementById('startBtn').disabled = false;
 }
 </script>
 
