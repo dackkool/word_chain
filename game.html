@@ -1,39 +1,469 @@
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>廣東話字接龍 - 數白欖對戰版</title>
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            font-family: "PingFang HK", "Microsoft JhengHei", sans-serif;
-            background-color: #FFF8E1;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .game-card {
-            background: #FFFFFF;
-            border-radius: 24px;
-            padding: 28px;
-            width: 100%;
-            max-width: 540px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-            border: 4px solid #FFB300;
-            text-align: center;
-        }
-        h1 {
-            color: #E65100;
-            font-size: 1.8em;
-            margin: 0 0 12px 0;
-        }
-        .score-badge {
-            font-size: 1.3em;
-            font-weight: bold;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>廣東話數白欖接龍</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", sans-serif;
+      background-color: #fff8e1;
+      color: #333;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .game-card {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border: 3px solid #ffb300;
+      text-align: center;
+    }
+    h1 {
+      color: #e65100;
+      font-size: 1.6rem;
+      margin-bottom: 12px;
+    }
+    .score-badge {
+      display: inline-block;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #d84315;
+      background: #ffe0b2;
+      padding: 6px 18px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    .chain-box {
+      background: #f1f8e9;
+      border: 2px dashed #81c784;
+      border-radius: 12px;
+      padding: 14px;
+      min-height: 130px;
+      max-height: 180px;
+      overflow-y: auto;
+      text-align: left;
+      font-size: 1.1rem;
+      line-height: 1.8;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+    .chain-item-ai {
+      color: #1565c0;
+      font-weight: bold;
+    }
+    .chain-item-user {
+      color: #2e7d32;
+      font-weight: bold;
+    }
+    .timer-container {
+      height: 12px;
+      background: #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .timer-bar {
+      height: 100%;
+      width: 0%;
+      background: #ff5722;
+      transition: width 0.1s linear;
+    }
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #ffb300;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      text-align: center;
+      outline: none;
+    }
+    input[type="text"]:focus {
+      border-color: #e65100;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      font-size: 1rem;
+      padding: 12px 16px;
+      cursor: pointer;
+      color: white;
+      transition: transform 0.1s ease;
+    }
+    button:active {
+      transform: scale(0.96);
+    }
+    .btn-submit {
+      background-color: #ff9800;
+    }
+    /* 綠色語音按鈕 */
+    .btn-mic {
+      background-color: #16a34a !important;
+    }
+    .btn-mic.recording {
+      background-color: #dc2626 !important;
+      animation: pulse 1s infinite;
+    }
+    .btn-start {
+      width: 100%;
+      background-color: #e65100;
+      font-size: 1.2rem;
+      padding: 14px;
+      border-radius: 12px;
+    }
+    button:disabled {
+      background-color: #cccccc !important;
+      color: #888888 !important;
+      cursor: not-allowed;
+      animation: none !important;
+    }
+    .status-text {
+      margin-top: 12px;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #1565c0;
+      min-height: 24px;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="game-card">
+  <h1>🥁 廣東話數白欖接龍</h1>
+  <div class="score-badge">得分：<span id="scoreText">0</span> 分</div>
+
+  <div id="chainBox" class="chain-box">點擊「開始遊戲」啟動對戰！</div>
+
+  <div class="timer-container">
+    <div id="timerBar" class="timer-bar"></div>
+  </div>
+
+  <div class="input-group">
+    <input type="text" id="userInput" placeholder="請輸入詞語" disabled onkeypress="handleKeyPress(event)">
+    <button id="submitBtn" class="btn-submit" onclick="submitWord()" disabled>送出</button>
+    <button id="micBtn" class="btn-mic" onclick="toggleMic()" disabled>🎤 語音</button>
+  </div>
+
+  <button id="startBtn" class="btn-start" onclick="startGame()">開始遊戲</button>
+  <div id="statusText" class="status-text">準備就緒</div>
+</div>
+
+<script>
+// 廣東話基本詞庫
+const baseVocabulary = [
+  "口水", "水花", "花朵", "太陽", "陽光", "光明", "明月", "月亮", 
+  "亮晶晶", "大小", "小學", "學生", "生活", "活潑", "蘋果", "果汁", 
+  "汁液", "天空", "空氣", "氣球", "球場", "場地", "地方", "方向",
+  "香港", "港口", "水果", "果樹", "樹木", "木頭", "頭髮", "發展",
+  "展覽", "車站", "站立", "立刻", "克服", "服裝", "裝飾", "食品"
+];
+
+const commonSuffixes = ["子", "人", "心", "天", "生", "車", "家", "國", "意", "理", "花", "水", "山", "海", "字"];
+
+let vocabulary = [...baseVocabulary];
+let chain = [];
+let usedWords = new Set();
+let score = 0;
+let timerFrame = null;
+let timerTimeout = null;
+let isPlayerTurn = false;
+let isMicListening = false;
+let recognition = null;
+
+// 初始化廣東話語音辨識
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-HK'; // 設定為廣東話
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    isMicListening = true;
+    const micBtn = document.getElementById('micBtn');
+    micBtn.classList.add('recording');
+    micBtn.innerText = '🛑 錄音中';
+    setStatus("正在聆聽廣東話...請講出詞語！");
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    // 過濾標點符號
+    transcript = transcript.replace(/[。，！？\s]/g, '');
+    document.getElementById('userInput').value = transcript;
+
+    if (event.results[0].isFinal && transcript) {
+      validateAndProcess(transcript);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    stopMicUI();
+    if (event.error === 'not-allowed') {
+      setStatus("❌ 未取得麥克風權限，請在瀏覽器設定中允許。");
+    } else {
+      setStatus("⚠️ 語音輸入異常：" + event.error);
+    }
+  };
+
+  recognition.onend = () => {
+    stopMicUI();
+  };
+}
+
+function stopMicUI() {
+  isMicListening = false;
+  const micBtn = document.getElementById('micBtn');
+  if (micBtn) {
+    micBtn.classList.remove('recording');
+    micBtn.innerText = '🎤 語音';
+  }
+}
+
+function toggleMic() {
+  if (!SpeechRecognition) {
+    alert("您的瀏覽器不支援語音辨識，建議使用 Google Chrome 開啟。");
+    return;
+  }
+  if (!isPlayerTurn) return;
+
+  if (isMicListening) {
+    try { recognition.stop(); } catch(e){}
+  } else {
+    try { recognition.start(); } catch(e){ setStatus("無法啟動麥克風"); }
+  }
+}
+
+// 將詞語轉為「詞語個尾字」格式（如：口水 -> 口水個水）
+function formatWordWithTail(word) {
+  const lastChar = word.slice(-1);
+  return `${word}個${lastChar}`;
+}
+
+// 由頭朗讀整個接龍鏈（如：「口水個水，水花個花，花朵個朵」）
+function speakFullChain(callback) {
+  window.speechSynthesis.cancel();
+  if (chain.length === 0) return;
+
+  // 將每個詞語都加上「個[尾字]」
+  const spokenList = chain.map(w => formatWordWithTail(w));
+  const textToSpeak = spokenList.join("，");
+
+  const utterance = new SpeechSynthesisUtterance(textToSpeak);
+  utterance.lang = 'zh-HK'; // 廣東話發音
+  utterance.rate = 0.95;    // 語速稍微調慢以清楚收聽
+
+  utterance.onend = () => { if (callback) callback(); };
+  utterance.onerror = () => { if (callback) callback(); };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// 電腦自動造詞
+function generateAiWord(targetChar) {
+  let candidates = vocabulary.filter(w => w.startsWith(targetChar) && !usedWords.has(w));
+  if (candidates.length > 0) {
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+  for (let suff of commonSuffixes) {
+    let created = targetChar + suff;
+    if (!usedWords.has(created)) {
+      vocabulary.push(created);
+      return created;
+    }
+  }
+  return targetChar + "字";
+}
+
+function startGame() {
+  score = 0;
+  chain = [];
+  usedWords.clear();
+  vocabulary = [...baseVocabulary];
+
+  document.getElementById('scoreText').innerText = score;
+  document.getElementById('startBtn').disabled = true;
+
+  // 電腦開局出題
+  const startWord = vocabulary[Math.floor(Math.random() * vocabulary.length)];
+  chain.push(startWord);
+  usedWords.add(startWord);
+
+  updateDisplay();
+  setStatus("遊戲開始！AI 由頭朗讀中...");
+
+  speakFullChain(() => {
+    startPlayerTurn();
+  });
+}
+
+function startPlayerTurn() {
+  isPlayerTurn = true;
+  const lastWord = chain[chain.length - 1];
+  const targetChar = lastWord.slice(-1);
+
+  setStatus(`輪到你！5 秒內接「${targetChar}」字！`);
+
+  document.getElementById('userInput').disabled = false;
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('micBtn').disabled = false;
+  document.getElementById('userInput').focus();
+  document.getElementById('userInput').value = '';
+
+  startTimer(5000, () => {
+    gameOver("時間到！未能及時接龍。");
+  });
+}
+
+function handleKeyPress(e) {
+  if (e.key === 'Enter') submitWord();
+}
+
+function submitWord() {
+  if (!isPlayerTurn) return;
+  const word = document.getElementById('userInput').value.trim();
+  if (word) validateAndProcess(word);
+}
+
+function validateAndProcess(playerWord) {
+  if (isMicListening) { try { recognition.stop(); } catch(e){} }
+
+  const lastWord = chain[chain.length - 1];
+  const requiredChar = lastWord.slice(-1);
+
+  if (playerWord.charAt(0) !== requiredChar) {
+    setStatus(`接錯啦！開頭字必須係「${requiredChar}」！`);
+    return;
+  }
+
+  if (usedWords.has(playerWord)) {
+    setStatus(`「${playerWord}」已經講過啦！請試另一個。`);
+    return;
+  }
+
+  stopTimer();
+  disableInput();
+  isPlayerTurn = false;
+
+  score++;
+  document.getElementById('scoreText').innerText = score;
+
+  chain.push(playerWord);
+  usedWords.add(playerWord);
+  if (!vocabulary.includes(playerWord)) vocabulary.push(playerWord);
+
+  updateDisplay();
+  setStatus("答對了！AI 由頭朗讀中...");
+
+  speakFullChain(() => {
+    setTimeout(computerTurn, 300);
+  });
+}
+
+function computerTurn() {
+  const lastWord = chain[chain.length - 1];
+  const targetChar = lastWord.slice(-1);
+  const aiWord = generateAiWord(targetChar);
+
+  chain.push(aiWord);
+  usedWords.add(aiWord);
+
+  updateDisplay();
+  setStatus(`電腦接：「${aiWord}」，AI 由頭朗讀中...`);
+
+  speakFullChain(() => {
+    startPlayerTurn();
+  });
+}
+
+function startTimer(ms, onTimeout) {
+  stopTimer();
+  const progressBar = document.getElementById('timerBar');
+  progressBar.style.width = '100%';
+  let startTime = Date.now();
+
+  timerFrame = setInterval(() => {
+    let elapsed = Date.now() - startTime;
+    let remaining = Math.max(0, 100 - (elapsed / ms * 100));
+    progressBar.style.width = remaining + '%';
+  }, 50);
+
+  timerTimeout = setTimeout(() => {
+    stopTimer();
+    onTimeout();
+  }, ms);
+}
+
+function stopTimer() {
+  if (timerFrame) clearInterval(timerFrame);
+  if (timerTimeout) clearTimeout(timerTimeout);
+  document.getElementById('timerBar').style.width = '0%';
+}
+
+function disableInput() {
+  document.getElementById('userInput').disabled = true;
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('micBtn').disabled = true;
+}
+
+function updateDisplay() {
+  const box = document.getElementById('chainBox');
+  box.innerHTML = chain.map((word, idx) => {
+    const formatted = formatWordWithTail(word);
+    return (idx % 2 === 0)
+      ? `<div class="chain-item-ai">[電腦] ${formatted}</div>`
+      : `<div class="chain-item-user">[玩家] ${formatted}</div>`;
+  }).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+function setStatus(text) {
+  document.getElementById('statusText').innerText = text;
+}
+
+function gameOver(reason) {
+  stopTimer();
+  disableInput();
+  isPlayerTurn = false;
+
+  setStatus(`💥 遊戲結束！${reason} 最終得分：${score} 分`);
+
+  const endUtterance = new SpeechSynthesisUtterance(`遊戲結束！${reason} 你得到了 ${score} 分。`);
+  endUtterance.lang = 'zh-HK';
+  window.speechSynthesis.speak(endUtterance);
+
+  document.getElementById('startBtn').disabled = false;
+}
+</script>
+
+</body>
+</html>
             color: #D84315;
             background: #FFE0B2;
             padding: 6px 16px;
