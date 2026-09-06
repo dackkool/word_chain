@@ -130,12 +130,12 @@ button:disabled {
 <div class="card">
   <div class="header-row">
     <h1>🥁 廣東話數白欖接龍</h1>
-    <button id="startBtn" class="btn-start" onclick="startGame()">開始遊戲</button>
+    <button id="startBtn" class="btn-start" onclick="startGame()" disabled>載入詞庫中...</button>
   </div>
 
   <div class="score">得分：<span id="score">0</span> 分</div>
 
-  <div id="box" class="box">點擊「開始遊戲」啟動對戰！</div>
+  <div id="box" class="box">請確保 word.txt 與本檔在同一路徑，正在載入詞庫...</div>
 
   <div class="bar-bg"><div id="bar" class="bar"></div></div>
 
@@ -146,30 +146,12 @@ button:disabled {
 
   <button id="voiceBtn" class="btn-voice" onclick="toggleVoice()" disabled>🎤 按此廣東話語音輸入</button>
 
-  <div id="status" class="status">準備就緒</div>
+  <div id="status" class="status">正在載入 word.txt...</div>
 </div>
 
 <script>
-// 擴充廣東話日常生活常用詞庫
-const baseWords = [
-  // 地點與地理
-  "香港", "港口", "廣東", "廣州", "九龍", "旺角", "中環", "天星", "碼頭",
-  "機場", "車站", "站立", "公園", "園林", "林木", "市場", "場地", "地方",
-  // 飲食與美食
-  "奶茶", "茶餐廳", "蛋撻", "撻沙", "燒鵝", "鵝肉", "牛肉", "肉包",
-  "包子", "點心", "心意", "意思", "蘋果", "果汁", "汁液", "雪糕",
-  "糕點", "西餅", "餅乾", "乾麵", "麵條", "豆腐", "腐竹", "竹筍",
-  // 交通與生活用品
-  "巴士", "士多", "電車", "車票", "票價", "價格", "格子", "子彈",
-  "電話", "話筒", "冷氣", "氣球", "球場", "衣服", "服裝", "鞋子",
-  // 天氣與自然
-  "太陽", "陽光", "光明", "明月", "月亮", "天空", "空氣", "水花",
-  "花朵", "朵朵", "口水", "水晶", "晶晶", "樹木", "木頭", "頭髮",
-  // 學習與日常
-  "小學", "學生", "生活", "活潑", "方向", "發展", "展覽", "立刻"
-];
-
-let words = [...baseWords];
+let baseWords = [];
+let words = [];
 let chain = [];
 let usedWords = new Set();
 let score = 0;
@@ -177,6 +159,43 @@ let isPlayerTurn = false;
 let timer = null;
 let recognition = null;
 let isListening = false;
+
+// 頁面載入時從 word.txt 讀取詞庫
+window.addEventListener('DOMContentLoaded', () => {
+  loadDictionary();
+});
+
+function loadDictionary() {
+  fetch('word.txt')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('無法讀取 word.txt');
+      }
+      return response.text();
+    })
+    .then(text => {
+      // 解析文字：按換行或逗號分隔，並移除空白與空行
+      baseWords = text
+        .split(/[\r\n,，]+/)
+        .map(w => w.trim())
+        .filter(w => w.length >= 2);
+
+      if (baseWords.length === 0) {
+        document.getElementById('status').innerText = "⚠️ word.txt 內容為空！";
+        return;
+      }
+
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('startBtn').innerText = '開始遊戲';
+      document.getElementById('status').innerText = `詞庫載入成功！（共 ${baseWords.length} 個詞語）`;
+      document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById('status').innerText = "❌ 載入 word.txt 失敗！請用 Web Server (如 Live Server) 開啟。";
+      document.getElementById('box').innerText = "讀取失敗，請確認 word.txt 是否與 index.html 放於同一資料夾。";
+    });
+}
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SR) {
@@ -246,6 +265,8 @@ function updateDisplay() {
 }
 
 function startGame() {
+  if (baseWords.length === 0) return;
+
   score = 0;
   chain = [];
   usedWords.clear();
@@ -323,8 +344,16 @@ function submitWord() {
 
 function aiTurn() {
   let lastChar = chain[chain.length - 1].slice(-1);
-  let next = words.find(w => w.startsWith(lastChar) && !usedWords.has(w)) || (lastChar + "子");
   
+  // 於詞庫搜尋符合首字且未使用的詞語
+  let next = words.find(w => w.startsWith(lastChar) && !usedWords.has(w));
+  
+  // 找不到便直接認輸，不補任何字
+  if (!next) {
+    gameOver("電腦詞窮認輸啦！找不到可以接「" + lastChar + "」的詞語，恭喜你獲勝！");
+    return;
+  }
+
   chain.push(next);
   usedWords.add(next);
   
