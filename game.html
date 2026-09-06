@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>廣東話字接龍 - 數白欖大挑戰</title>
+    <style>
+        body {
+            font-family: "PingFang HK", "Microsoft JhengHei", sans-serif;
+            background-color: #FFF9E6;
+            text-align: center;
+            padding: 20px;
+            color: #333;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 500px;
+            margin: 0 auto;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border: 4px solid #FF9800;
+        }
+        h1 { color: #E65100; margin-bottom: 10px; }
+        .rule { color: #666; font-size: 0.95em; }
+        .chain-box {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2E7D32;
+            min-height: 80px;
+            margin: 20px 0;
+            padding: 15px;
+            background: #E8F5E9;
+            border-radius: 12px;
+            word-break: break-all;
+        }
+        .timer-bar {
+            height: 16px;
+            background: #E0E0E0;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        .timer-progress {
+            height: 100%;
+            width: 0%;
+            background: #FF5722;
+            transition: width 0.1s linear;
+        }
+        button {
+            font-size: 1.2em;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            background: #FF9800;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #E65100;
+        }
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #E65100; }
+        button:disabled { background: #CCC; box-shadow: none; }
+        .status { font-size: 1.1em; font-weight: bold; margin-top: 15px; color: #1565C0; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🥁 廣東話數白欖接龍</h1>
+    <p class="rule">小一至小三適用：聽到節奏後，5秒內讀出整個詞語串（最後一字同音接龍）！</p>
+    
+    <div id="chainDisplay" class="chain-box">按「開始遊戲」準備！</div>
+    
+    <div class="timer-bar">
+        <div id="timerProgress" class="timer-progress"></div>
+    </div>
+
+    <button id="startBtn" onclick="startGame()">開始遊戲</button>
+    <div id="statusText" class="status">準備就緒</div>
+</div>
+
+<script>
+// 適合小一至小三的詞彙庫
+const vocabulary = ["太陽", "陽光", "光明", "明月", "月亮", "亮晶晶", "水花", "花朵", "朵朵", "大小", "小學", "學生", "生活", "活潑", "蘋果", "果汁", "汁液"];
+
+let chain = [];
+let audioCtx = null;
+let beatInterval = null;
+let timerTimeout = null;
+let recognition = null;
+
+// 初始化語音識別 (Web Speech API)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'zh-HK'; // 廣東話
+    recognition.continuous = false;
+    recognition.interimResults = false;
+}
+
+// Web Audio API 生成「數白欖」木魚/梆子節拍聲
+function playBeatSound() {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.08);
+    
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+}
+
+function startBGM() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (beatInterval) clearInterval(beatInterval);
+    
+    // 每 500ms 一拍 (120 BPM 數白欖節奏)
+    beatInterval = setInterval(playBeatSound, 500);
+}
+
+function stopBGM() {
+    if (beatInterval) clearInterval(beatInterval);
+}
+
+// 電腦廣東話朗讀
+function speakCantonese(text, callback) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-HK';
+    utterance.rate = 1.0; // 配合節奏語速
+    
+    utterance.onend = () => { if (callback) callback(); };
+    utterance.onerror = () => { if (callback) callback(); };
+    
+    window.speechSynthesis.speak(utterance);
+}
+
+function startGame() {
+    document.getElementById('startBtn').disabled = true;
+    startBGM();
+    
+    // 隨機選一個起始詞
+    const randomWord = vocabulary[Math.floor(Math.random() * vocabulary.length)];
+    chain = [randomWord];
+    
+    updateDisplay();
+    setStatus("電腦示範中...");
+    
+    // 電腦先讀出起始詞，然後輪到玩家
+    speakCantonese(chain.join(" "), () => {
+        playerTurn();
+    });
+}
+
+function updateDisplay() {
+    document.getElementById('chainDisplay').innerText = chain.join(" ➔ ");
+}
+
+function setStatus(text) {
+    document.getElementById('statusText').innerText = text;
+}
+
+function playerTurn() {
+    setStatus("輪到你！請在 5 秒內跟節拍讀出全句並加上新詞！");
+    
+    // 啟動 5 秒倒數條
+    const progressBar = document.getElementById('timerProgress');
+    progressBar.style.width = '100%';
+    
+    let startTime = Date.now();
+    let duration = 5000;
+    
+    let timerFrame = setInterval(() => {
+        let elapsed = Date.now() - startTime;
+        let remaining = Math.max(0, 100 - (elapsed / duration * 100));
+        progressBar.style.width = remaining + '%';
+        if (remaining <= 0) clearInterval(timerFrame);
+    }, 50);
+
+    // 開啟語音辨識
+    if (recognition) {
+        try { recognition.start(); } catch(e){}
+        
+        recognition.onresult = (event) => {
+            clearInterval(timerFrame);
+            progressBar.style.width = '0%';
+            let userSpeech = event.results[0][0].transcript;
+            console.log("聽到玩家說：", userSpeech);
+            
+            // 簡化處理：讀完後進入電腦回合，自動接上新詞語
+            processPlayerSuccess();
+        };
+
+        recognition.onerror = () => {
+            // 若辨識失敗或環境噪音，超時後自動推進（適合教學遊戲情境）
+        };
+    }
+
+    // 5秒時間到
+    timerTimeout = setTimeout(() => {
+        clearInterval(timerFrame);
+        if (recognition) try { recognition.stop(); } catch(e){}
+        processPlayerSuccess();
+    }, 5000);
+}
+
+function processPlayerSuccess() {
+    setStatus("真棒！電腦思考下一個詞語中...");
+    
+    setTimeout(() => {
+        // 電腦尋找接龍詞語（匹配最後一個字的同音/同字）
+        const lastWord = chain[chain.length - 1];
+        const lastChar = lastWord.slice(-1);
+        
+        // 尋找符合首字相同的詞，若無則隨機選一個
+        let nextWord = vocabulary.find(w => w.startsWith(lastChar) && !chain.includes(w));
+        if (!nextWord) {
+            nextWord = vocabulary[Math.floor(Math.random() * vocabulary.length)];
+        }
+        
+        chain.push(nextWord);
+        updateDisplay();
+        
+        setStatus("電腦數白欖朗讀中...");
+        speakCantonese(chain.join(" "), () => {
+            if (chain.length < 6) {
+                playerTurn();
+            } else {
+                finishGame();
+            }
+        });
+    }, 1000);
+}
+
+function finishGame() {
+    stopBGM();
+    setStatus("🎉 挑戰成功！太厲害了！");
+    document.getElementById('startBtn').disabled = false;
+    speakCantonese("挑戰成功！太厲害了！");
+}
+</script>
+
+</body>
+</html>
+  
