@@ -291,7 +291,7 @@ function startGame() {
 function nextTurn() {
   isPlayerTurn = true;
   let lastChar = chain[chain.length - 1].slice(-1);
-  document.getElementById('status').innerText = "輪到你！請接「" + lastChar + "」字（5秒）";
+  document.getElementById('status').innerText = "輪到你！請接「" + lastChar + "」字（10秒）";
   
   let input = document.getElementById('wordInput');
   input.disabled = false;
@@ -301,8 +301,8 @@ function nextTurn() {
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('voiceBtn').disabled = false;
 
-  startTimer(5, function() { 
-    gameOver("時間到！未能於 5 秒內接龍。"); 
+  startTimer(10, function() { 
+    gameOver("時間到！未能於 10 秒內接龍。"); 
   });
 }
 
