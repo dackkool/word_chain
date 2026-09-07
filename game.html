@@ -135,7 +135,7 @@ button:disabled {
 
   <div class="score">得分：<span id="score">0</span> 分</div>
 
-  <div id="box" class="box">請確保 word.txt 與本檔在同一路徑，正在載入詞庫...</div>
+  <div id="box" class="box">正在從 word.txt 載入大詞庫...</div>
 
   <div class="bar-bg"><div id="bar" class="bar"></div></div>
 
@@ -146,7 +146,7 @@ button:disabled {
 
   <button id="voiceBtn" class="btn-voice" onclick="toggleVoice()" disabled>🎤 按此廣東話語音輸入</button>
 
-  <div id="status" class="status">正在載入 word.txt...</div>
+  <div id="status" class="status">正在讀取 word.txt...</div>
 </div>
 
 <script>
@@ -160,7 +160,6 @@ let timer = null;
 let recognition = null;
 let isListening = false;
 
-// 頁面載入時從 word.txt 讀取詞庫
 window.addEventListener('DOMContentLoaded', () => {
   loadDictionary();
 });
@@ -168,32 +167,37 @@ window.addEventListener('DOMContentLoaded', () => {
 function loadDictionary() {
   fetch('word.txt')
     .then(response => {
-      if (!response.ok) {
-        throw new Error('無法讀取 word.txt');
-      }
+      if (!response.ok) throw new Error('無法讀取 word.txt');
       return response.text();
     })
     .then(text => {
-      // 解析文字：按換行或逗號分隔，並移除空白與空行
-      baseWords = text
-        .split(/[\r\n,，]+/)
-        .map(w => w.trim())
-        .filter(w => w.length >= 2);
+      // 自動過濾空行、單字與非中文，只留 2 個字以上的詞語
+      let rawList = text.split(/[\r\n,，]+/);
+      let set = new Set();
+      
+      for (let w of rawList) {
+        let trimmed = w.trim().replace(/[^\u4e00-\u9fa5]/g, ''); // 只保留中文
+        if (trimmed.length >= 2) {
+          set.add(trimmed);
+        }
+      }
+
+      baseWords = Array.from(set);
 
       if (baseWords.length === 0) {
-        document.getElementById('status').innerText = "⚠️ word.txt 內容為空！";
+        document.getElementById('status').innerText = "⚠️ word.txt 無有效詞語！";
         return;
       }
 
       document.getElementById('startBtn').disabled = false;
       document.getElementById('startBtn').innerText = '開始遊戲';
-      document.getElementById('status').innerText = `詞庫載入成功！（共 ${baseWords.length} 個詞語）`;
+      document.getElementById('status').innerText = `大詞庫載入成功！（共有 ${baseWords.length} 個詞語）`;
       document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
     })
     .catch(err => {
       console.error(err);
-      document.getElementById('status').innerText = "❌ 載入 word.txt 失敗！請用 Web Server (如 Live Server) 開啟。";
-      document.getElementById('box').innerText = "讀取失敗，請確認 word.txt 是否與 index.html 放於同一資料夾。";
+      document.getElementById('status').innerText = "❌ 載入失敗！請確保用 Web Server (如 Live Server) 開啟。";
+      document.getElementById('box').innerText = "無法載入 word.txt，請檢查檔案路徑。";
     });
 }
 
@@ -297,8 +301,8 @@ function nextTurn() {
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('voiceBtn').disabled = false;
 
-  startTimer(10, function() { 
-    gameOver("時間到！未能於 10 秒內接龍。"); 
+  startTimer(5, function() { 
+    gameOver("時間到！未能於 5 秒內接龍。"); 
   });
 }
 
@@ -344,11 +348,8 @@ function submitWord() {
 
 function aiTurn() {
   let lastChar = chain[chain.length - 1].slice(-1);
-  
-  // 於詞庫搜尋符合首字且未使用的詞語
   let next = words.find(w => w.startsWith(lastChar) && !usedWords.has(w));
   
-  // 找不到便直接認輸，不補任何字
   if (!next) {
     gameOver("電腦詞窮認輸啦！找不到可以接「" + lastChar + "」的詞語，恭喜你獲勝！");
     return;
