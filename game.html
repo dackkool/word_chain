@@ -162,12 +162,12 @@ let timer = null;
 let recognition = null;
 let isListening = false;
 
-// 內建廣東話備用詞庫（防止瀏覽器封鎖本地 file:// 讀取 word.txt）
+// 內建廣東話備用詞庫
 const fallbackWords = [
   "香港", "九龍", "新界", "中環", "灣仔", "銅鑼灣", "尖沙咀", "旺角", "深水埗", "觀塘",
   "荃灣", "沙田", "屯門", "元朗", "大埔", "上水", "赤柱", "西貢", "長洲", "大澳",
-  "莊園", "裝置", "裝飾", "莊重", "裝修", "莊家", "服裝", "化妝",
-  "村民", "屋邨", "村莊", "邨民", "紙張", "紙飛機", "兒子", "勿忘", "物品",
+  "留影", "樓梯", "樓宇", "留意", "莊園", "裝置", "裝飾", "莊重", "裝修", "莊家",
+  "村民", "屋邨", "村莊", "邨民", "紙張", "紙飛機", "兒子", "勿忘", "物品", "各師各法", "閣下",
   "奶茶", "凍奶茶", "檸檬茶", "凍檸茶", "鴛鴦", "蛋撻", "菠蘿包", "燒鵝", "叉燒", "燒肉",
   "蝦餃", "燒賣", "粉果", "腸粉", "蘿蔔糕", "車仔麵", "雲吞麵", "牛腩麵", "乾炒牛河", "魚蛋",
   "雞蛋", "雞蛋仔", "格仔餅", "碗仔翅", "臭豆腐", "豆腐花", "茶餐廳", "酒樓", "冰室", "點心",
@@ -178,9 +178,10 @@ const fallbackWords = [
   "世界", "界限", "街市", "解釋", "歷史", "時間", "空間", "社會", "經濟", "文化"
 ];
 
-// 廣東話常見同音/近音字手動補強清單（確保無縫比對）
+// 廣東話常錯同音/多音字補強字典
 const customHomophoneMap = {
-  '各': ['gok'], '閣': ['gok'], '角': ['gok'], '腳': ['goek', 'gok'], // 👈 新增「各/閣/角」同音
+  '留': ['lau'], '樓': ['lau'], '劉': ['lau'], '流': ['lau'], '琉': ['lau'],
+  '各': ['gok'], '閣': ['gok'], '角': ['gok'], '腳': ['goek', 'gok'],
   '車': ['ce', 'geoi'], '居': ['geoi'], '駒': ['geoi'], '鋸': ['geoi'],
   '村': ['cyun'], '邨': ['cyun'],
   '莊': ['zong'], '裝': ['zong'], '葬': ['zong'], '藏': ['zong', 'cong'],
@@ -235,7 +236,7 @@ function parseAndSetWords(rawList, sourceMsg) {
   document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
 }
 
-// 🎯 全自動廣東話近音與同音判定演算法
+// 🎯 全新廣東話「超容錯」同音/近音判定算法
 function getJyutpingList(char) {
   if (window.ToJyutping) {
     try {
@@ -248,15 +249,16 @@ function getJyutpingList(char) {
 
 function parseJyutping(jpStr) {
   if (!jpStr) return { raw: "", base: "" };
-  // 徹底清除結尾的數字聲調 (1-6)
+  // 清除聲調數字 (1-6)
   let clean = jpStr.toLowerCase().replace(/[1-6]$/g, '').trim();
   
-  // 廣東話近音與懶音寬鬆化處理
+  // 廣東話常見懶音、近音與相似韻母寬鬆化比對
   let base = clean
-    .replace(/^l/, 'n')   // n / l 不分
-    .replace(/^ng/, '')   // 零聲母相通
-    .replace(/^c/, 'z')   // z / c 近音寬鬆
-    .replace(/^k/, 'g');  // g / k 近音寬鬆
+    .replace(/^l/, 'n')      // n / l 懶音相通
+    .replace(/^ng/, '')      // 零聲母相通
+    .replace(/^c/, 'z')      // z / c 近音寬鬆
+    .replace(/^k/, 'g')      // g / k 近音寬鬆
+    .replace(/ou$/, 'au');   // au / ou 近音韻母相通
 
   return { raw: clean, base: base };
 }
@@ -264,14 +266,14 @@ function parseJyutping(jpStr) {
 function isHomophoneOrNearSound(char1, char2) {
   if (char1 === char2) return true; // 完全相同字
 
-  // 1. 比對手動補強同音庫
+  // 1. 比對手動補強字典
   let custom1 = customHomophoneMap[char1];
   let custom2 = customHomophoneMap[char2];
   if (custom1 && custom2) {
     if (custom1.some(p => custom2.includes(p))) return true;
   }
 
-  // 2. 比對拼音庫
+  // 2. 比對拼音庫（自動消除聲調與懶音）
   let list1 = getJyutpingList(char1);
   let list2 = getJyutpingList(char2);
 
@@ -280,7 +282,7 @@ function isHomophoneOrNearSound(char1, char2) {
     for (let p2 of list2) {
       let parsed2 = parseJyutping(p2);
       
-      // 完全同音（無視聲調）或 懶音/近音相通
+      // 無視聲調完全同音 或 聲韻母模糊近音相通
       if (parsed1.raw === parsed2.raw || parsed1.base === parsed2.base) {
         return true;
       }
@@ -381,7 +383,7 @@ function nextTurn() {
   isPlayerTurn = true;
   let lastChar = chain[chain.length - 1].slice(-1);
   
-  document.getElementById('status').innerText = `輪到你！請接「${lastChar}」字或近音字（8秒）`;
+  document.getElementById('status').innerText = `輪到你！請接「${lastChar}」字或近音字（7秒）`;
   
   let input = document.getElementById('wordInput');
   input.disabled = false;
@@ -391,8 +393,8 @@ function nextTurn() {
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('voiceBtn').disabled = false;
 
-  startTimer(8, function() { 
-    gameOver("時間到！未能於 8 秒內接龍。"); 
+  startTimer(7, function() { 
+    gameOver("時間到！未能於 7 秒內接龍。"); 
   });
 }
 
