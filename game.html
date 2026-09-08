@@ -137,7 +137,7 @@ button:disabled {
 
   <div class="score">得分：<span id="score">0</span> 分</div>
 
-  <div id="box" class="box">正在載入廣東話高品質詞庫...</div>
+  <div id="box" class="box">正在載入廣東話詞庫...</div>
 
   <div class="bar-bg"><div id="bar" class="bar"></div></div>
 
@@ -148,7 +148,7 @@ button:disabled {
 
   <button id="voiceBtn" class="btn-voice" onclick="toggleVoice()" disabled>🎤 按此廣東話語音輸入</button>
 
-  <div id="status" class="status">正在下載線上記錄詞庫...</div>
+  <div id="status" class="status">正在初始化詞庫...</div>
 </div>
 
 <script>
@@ -162,46 +162,63 @@ let timer = null;
 let recognition = null;
 let isListening = false;
 
+// 內建廣東話備用詞庫（防止瀏覽器封鎖本地 file:// 讀取 word.txt）
+const fallbackWords = [
+  "香港", "九龍", "新界", "中環", "灣仔", "銅鑼灣", "尖沙咀", "旺角", "深水埗", "觀塘",
+  "荃灣", "沙田", "屯門", "元朗", "大埔", "上水", "赤柱", "西貢", "長洲", "大澳",
+  "奶茶", "凍奶茶", "檸檬茶", "凍檸茶", "鴛鴦", "蛋撻", "菠蘿包", "燒鵝", "叉燒", "燒肉",
+  "蝦餃", "燒賣", "粉果", "腸粉", "蘿蔔糕", "車仔麵", "雲吞麵", "牛腩麵", "乾炒牛河", "魚蛋",
+  "雞蛋", "雞蛋仔", "格仔餅", "碗仔翅", "臭豆腐", "豆腐花", "茶餐廳", "酒樓", "冰室", "點心",
+  "打工", "返工", "放工", "放假", "人工", "老闆", "同事", "收工", "加班", "睇戲",
+  "聽歌", "唱歌", "跳舞", "行街", "購物", "買衫", "食飯", "飲茶", "傾偈", "吹水",
+  "廣東話", "粵語", "白話", "聲調", "數白欖", "接龍", "遊戲", "開心", "快樂", "巴士",
+  "小巴", "地鐵", "電車", "的士", "渡輪", "飛機", "單車", "馬路", "車站", "手機",
+  "世界", "界限", "街市", "解釋", "歷史", "時間", "空間", "社會", "經濟", "文化"
+];
+
 window.addEventListener('DOMContentLoaded', () => {
   loadDictionary();
 });
 
-// 載入優質詞庫（優先從線上載入，失敗則讀取本地 word.txt）
 function loadDictionary() {
-  fetch('https://raw.githubusercontent.com/samsonko/hongkong-cantonese-dict/master/dict.txt')
-    .then(res => res.text())
-    .catch(() => fetch('word.txt').then(res => res.text()))
+  fetch('word.txt')
+    .then(res => {
+      if (!res.ok) throw new Error("無法讀取 word.txt");
+      return res.text();
+    })
     .then(text => {
       let rawList = text.split(/[\r\n,，\s]+/);
-      let set = new Set();
-      
-      for (let w of rawList) {
-        let trimmed = w.trim().replace(/[^\u4e00-\u9fa5]/g, '');
-        // 只保留 2 至 4 個字的大眾常用真實詞彙
-        if (trimmed.length >= 2 && trimmed.length <= 4) {
-          set.add(trimmed);
-        }
-      }
-
-      baseWords = Array.from(set);
-
-      if (baseWords.length === 0) {
-        document.getElementById('status').innerText = "⚠️ 詞庫載入失敗！";
-        return;
-      }
-
-      document.getElementById('startBtn').disabled = false;
-      document.getElementById('startBtn').innerText = '開始遊戲';
-      document.getElementById('status').innerText = `近音接龍模式就緒！（共 ${baseWords.length} 詞）`;
-      document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
+      parseAndSetWords(rawList, "已成功載入 word.txt 詞庫");
     })
     .catch(err => {
-      console.error(err);
-      document.getElementById('status').innerText = "❌ 載入失敗！請檢查網絡。";
+      console.warn("無法讀取 word.txt（可能因瀏覽器安全限制），自動啟用內建備用廣東話詞庫。");
+      parseAndSetWords(fallbackWords, "已載入內建廣東話詞庫");
     });
 }
 
-// 🎯 廣東話「同音」與「大約近音」的核心判定機制
+function parseAndSetWords(rawList, sourceMsg) {
+  let set = new Set();
+  for (let w of rawList) {
+    let trimmed = w.trim().replace(/[^\u4e00-\u9fa5]/g, '');
+    if (trimmed.length >= 2 && trimmed.length <= 4) {
+      set.add(trimmed);
+    }
+  }
+
+  baseWords = Array.from(set);
+
+  if (baseWords.length === 0) {
+    document.getElementById('status').innerText = "⚠️ 無有效詞語！";
+    return;
+  }
+
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('startBtn').innerText = '開始遊戲';
+  document.getElementById('status').innerText = `${sourceMsg}（共 ${baseWords.length} 詞）`;
+  document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
+}
+
+// 廣東話「同音」與「大約近音」的核心判定機制
 function getJyutpingList(char) {
   if (window.ToJyutping) {
     try {
@@ -212,21 +229,18 @@ function getJyutpingList(char) {
   return [char];
 }
 
-// 將拼音拆解成 [音素(去掉數字調號), 聲調]
 function parseJyutping(jpStr) {
   if (!jpStr) return { base: "", tone: "" };
   let match = jpStr.match(/^([a-z]+)([1-6]?)$/i);
   if (match) {
-    let base = match[1].toLowerCase();
-    // 處理懶音模糊化：將 l 換成 n，z/s/c 模糊化
-    base = base.replace(/^l/, 'n'); 
+    let base = match[1].toLowerCase().replace(/^l/, 'n'); 
     return { base: base, tone: match[2] };
   }
   return { base: jpStr.toLowerCase(), tone: "" };
 }
 
 function isHomophoneOrNearSound(char1, char2) {
-  if (char1 === char2) return true; // 1. 完全同字
+  if (char1 === char2) return true;
 
   let list1 = getJyutpingList(char1);
   let list2 = getJyutpingList(char2);
@@ -235,12 +249,7 @@ function isHomophoneOrNearSound(char1, char2) {
     let parsed1 = parseJyutping(p1);
     for (let p2 of list2) {
       let parsed2 = parseJyutping(p2);
-
-      // 2. 完全同音 (包含聲調)
-      if (p1 === p2) return true;
-
-      // 3. 大約近音 (聲母+韻母相同，無視 1~6 聲調差異，例如：界 gaai3 vs 街 gaai1)
-      if (parsed1.base === parsed2.base) return true;
+      if (p1 === p2 || parsed1.base === parsed2.base) return true;
     }
   }
   return false;
@@ -369,7 +378,6 @@ function submitWord() {
 
   let userFirstChar = val.charAt(0);
 
-  // 🎯 近音 / 同音判定
   if (!isHomophoneOrNearSound(userFirstChar, lastChar)) {
     gameOver(`接錯字！「${val}」的首字「${userFirstChar}」與「${lastChar}」不同音也不近音。`);
     return;
@@ -398,7 +406,6 @@ function submitWord() {
 function aiTurn() {
   let lastChar = chain[chain.length - 1].slice(-1);
   
-  // 🎯 電腦會優先找近音/同音的實用詞彙
   let next = words.find(w => !usedWords.has(w) && isHomophoneOrNearSound(w.charAt(0), lastChar));
   
   if (!next) {
