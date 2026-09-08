@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>廣東話數白欖同音接龍</title>
-<!-- 載入輕量級粵語拼音庫 -->
+<title>廣東話數白欖近音/同音接龍</title>
+<!-- 載入粵語拼音庫 -->
 <script src="https://cdn.jsdelivr.net/npm/to-jyutping@1.3.0/to-jyutping.js"></script>
 <style>
 body {
@@ -57,7 +57,7 @@ h1 {
   border: 2px dashed #81c784;
   border-radius: 10px;
   padding: 10px;
-  height: 180px;
+  height: 220px;
   overflow-y: auto;
   text-align: left;
   margin-bottom: 10px;
@@ -131,24 +131,24 @@ button:disabled {
 
 <div class="card">
   <div class="header-row">
-    <h1>🥁 廣東話同音數白欖接龍</h1>
+    <h1>🥁 廣東話近音數白欖接龍</h1>
     <button id="startBtn" class="btn-start" onclick="startGame()" disabled>載入詞庫中...</button>
   </div>
 
   <div class="score">得分：<span id="score">0</span> 分</div>
 
-  <div id="box" class="box">正在從 word.txt 載入大詞庫...</div>
+  <div id="box" class="box">正在載入廣東話高品質詞庫...</div>
 
   <div class="bar-bg"><div id="bar" class="bar"></div></div>
 
   <div class="inputs">
-    <input type="text" id="wordInput" placeholder="輸入詞語（支援同音字）" disabled onkeypress="handleKeyPress(event)">
+    <input type="text" id="wordInput" placeholder="輸入詞語（支援同音/近音字）" disabled onkeypress="handleKeyPress(event)">
     <button id="sendBtn" class="btn-send" onclick="submitWord()" disabled>送出</button>
   </div>
 
   <button id="voiceBtn" class="btn-voice" onclick="toggleVoice()" disabled>🎤 按此廣東話語音輸入</button>
 
-  <div id="status" class="status">正在讀取 word.txt...</div>
+  <div id="status" class="status">正在下載線上記錄詞庫...</div>
 </div>
 
 <script>
@@ -162,24 +162,23 @@ let timer = null;
 let recognition = null;
 let isListening = false;
 
-// 頁面載入時讀取詞庫
 window.addEventListener('DOMContentLoaded', () => {
   loadDictionary();
 });
 
+// 載入優質詞庫（優先從線上載入，失敗則讀取本地 word.txt）
 function loadDictionary() {
-  fetch('word.txt')
-    .then(response => {
-      if (!response.ok) throw new Error('無法讀取 word.txt');
-      return response.text();
-    })
+  fetch('https://raw.githubusercontent.com/samsonko/hongkong-cantonese-dict/master/dict.txt')
+    .then(res => res.text())
+    .catch(() => fetch('word.txt').then(res => res.text()))
     .then(text => {
-      let rawList = text.split(/[\r\n,，]+/);
+      let rawList = text.split(/[\r\n,，\s]+/);
       let set = new Set();
       
       for (let w of rawList) {
         let trimmed = w.trim().replace(/[^\u4e00-\u9fa5]/g, '');
-        if (trimmed.length >= 2) {
+        // 只保留 2 至 4 個字的大眾常用真實詞彙
+        if (trimmed.length >= 2 && trimmed.length <= 4) {
           set.add(trimmed);
         }
       }
@@ -187,44 +186,64 @@ function loadDictionary() {
       baseWords = Array.from(set);
 
       if (baseWords.length === 0) {
-        document.getElementById('status').innerText = "⚠️ word.txt 無有效詞語！";
+        document.getElementById('status').innerText = "⚠️ 詞庫載入失敗！";
         return;
       }
 
       document.getElementById('startBtn').disabled = false;
       document.getElementById('startBtn').innerText = '開始遊戲';
-      document.getElementById('status').innerText = `同音接龍模式就緒！（共 ${baseWords.length} 詞）`;
+      document.getElementById('status').innerText = `近音接龍模式就緒！（共 ${baseWords.length} 詞）`;
       document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
     })
     .catch(err => {
       console.error(err);
-      document.getElementById('status').innerText = "❌ 載入失敗！請確保用 Web Server 開啟。";
-      document.getElementById('box').innerText = "無法載入 word.txt，請檢查檔案路徑。";
+      document.getElementById('status').innerText = "❌ 載入失敗！請檢查網絡。";
     });
 }
 
-// 🎯 廣東話同音字核心判定函式
-function getJyutping(char) {
+// 🎯 廣東話「同音」與「大約近音」的核心判定機制
+function getJyutpingList(char) {
   if (window.ToJyutping) {
     try {
       let jp = ToJyutping.get(char);
       if (jp && jp.length > 0) return jp;
     } catch(e){}
   }
-  return char; // 若找不到拼音，退回比較原字
+  return [char];
 }
 
-function isHomophone(char1, char2) {
-  if (char1 === char2) return true; // 完全同字
-  
-  let jp1 = getJyutping(char1);
-  let jp2 = getJyutping(char2);
-
-  // 如果獲取到拼音陣列，檢查是否有任何一組粵拼相同
-  if (Array.isArray(jp1) && Array.isArray(jp2)) {
-    return jp1.some(p1 => jp2.includes(p1));
+// 將拼音拆解成 [音素(去掉數字調號), 聲調]
+function parseJyutping(jpStr) {
+  if (!jpStr) return { base: "", tone: "" };
+  let match = jpStr.match(/^([a-z]+)([1-6]?)$/i);
+  if (match) {
+    let base = match[1].toLowerCase();
+    // 處理懶音模糊化：將 l 換成 n，z/s/c 模糊化
+    base = base.replace(/^l/, 'n'); 
+    return { base: base, tone: match[2] };
   }
-  return jp1 === jp2;
+  return { base: jpStr.toLowerCase(), tone: "" };
+}
+
+function isHomophoneOrNearSound(char1, char2) {
+  if (char1 === char2) return true; // 1. 完全同字
+
+  let list1 = getJyutpingList(char1);
+  let list2 = getJyutpingList(char2);
+
+  for (let p1 of list1) {
+    let parsed1 = parseJyutping(p1);
+    for (let p2 of list2) {
+      let parsed2 = parseJyutping(p2);
+
+      // 2. 完全同音 (包含聲調)
+      if (p1 === p2) return true;
+
+      // 3. 大約近音 (聲母+韻母相同，無視 1~6 聲調差異，例如：界 gaai3 vs 街 gaai1)
+      if (parsed1.base === parsed2.base) return true;
+    }
+  }
+  return false;
 }
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -318,7 +337,7 @@ function nextTurn() {
   isPlayerTurn = true;
   let lastChar = chain[chain.length - 1].slice(-1);
   
-  document.getElementById('status').innerText = `輪到你！請接「${lastChar}」字或同音字（5秒）`;
+  document.getElementById('status').innerText = `輪到你！請接「${lastChar}」字或近音字（5秒）`;
   
   let input = document.getElementById('wordInput');
   input.disabled = false;
@@ -350,9 +369,9 @@ function submitWord() {
 
   let userFirstChar = val.charAt(0);
 
-  // 🎯 使用廣東話同音字比對
-  if (!isHomophone(userFirstChar, lastChar)) {
-    gameOver(`接錯字！「${val}」的首字「${userFirstChar}」與「${lastChar}」不同音。`);
+  // 🎯 近音 / 同音判定
+  if (!isHomophoneOrNearSound(userFirstChar, lastChar)) {
+    gameOver(`接錯字！「${val}」的首字「${userFirstChar}」與「${lastChar}」不同音也不近音。`);
     return;
   }
 
@@ -379,11 +398,11 @@ function submitWord() {
 function aiTurn() {
   let lastChar = chain[chain.length - 1].slice(-1);
   
-  // 🎯 電腦尋找相同音或相同字的詞語
-  let next = words.find(w => !usedWords.has(w) && isHomophone(w.charAt(0), lastChar));
+  // 🎯 電腦會優先找近音/同音的實用詞彙
+  let next = words.find(w => !usedWords.has(w) && isHomophoneOrNearSound(w.charAt(0), lastChar));
   
   if (!next) {
-    gameOver("電腦詞窮認輸啦！找不到可以接「" + lastChar + "」（或同音字）的詞語，恭喜你獲勝！");
+    gameOver("電腦詞窮認輸啦！找不到可以接「" + lastChar + "」（或同音/近音字）的詞語，恭喜你獲勝！");
     return;
   }
 
