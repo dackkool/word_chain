@@ -180,6 +180,7 @@ const fallbackWords = [
 
 // 廣東話常見同音/近音字手動補強清單（確保無縫比對）
 const customHomophoneMap = {
+  '車': ['ce', 'geoi'], '居': ['geoi'], '駒': ['geoi'], '鋸': ['geoi'], // 👈 新增象棋「車/居/駒」同音
   '村': ['cyun'], '邨': ['cyun'],
   '莊': ['zong'], '裝': ['zong'], '葬': ['zong'], '藏': ['zong', 'cong'],
   '界': ['gaai'], '街': ['gaai'], '解': ['gaai'], '介': ['gaai'], '雞': ['gai'],
@@ -379,7 +380,7 @@ function nextTurn() {
   isPlayerTurn = true;
   let lastChar = chain[chain.length - 1].slice(-1);
   
-  document.getElementById('status').innerText = `輪到你！請接「${lastChar}」字或近音字（5秒）`;
+  document.getElementById('status').innerText = `輪到你！請接「${lastChar}」字或近音字（8秒）`;
   
   let input = document.getElementById('wordInput');
   input.disabled = false;
@@ -389,8 +390,8 @@ function nextTurn() {
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('voiceBtn').disabled = false;
 
-  startTimer(5, function() { 
-    gameOver("時間到！未能於 5 秒內接龍。"); 
+  startTimer(8, function() { 
+    gameOver("時間到！未能於 8 秒內接龍。"); 
   });
 }
 
