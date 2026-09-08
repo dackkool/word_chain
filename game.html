@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>廣東話數白欖近音/同音接龍</title>
+<title>廣東話數白欖同音/近音接龍</title>
 <!-- 載入粵語拼音庫 -->
 <script src="https://cdn.jsdelivr.net/npm/to-jyutping@1.3.0/to-jyutping.js"></script>
 <style>
@@ -166,6 +166,7 @@ let isListening = false;
 const fallbackWords = [
   "香港", "九龍", "新界", "中環", "灣仔", "銅鑼灣", "尖沙咀", "旺角", "深水埗", "觀塘",
   "荃灣", "沙田", "屯門", "元朗", "大埔", "上水", "赤柱", "西貢", "長洲", "大澳",
+  "莊園", "裝置", "裝飾", "莊重", "裝修", "莊家", "服裝", "化妝",
   "奶茶", "凍奶茶", "檸檬茶", "凍檸茶", "鴛鴦", "蛋撻", "菠蘿包", "燒鵝", "叉燒", "燒肉",
   "蝦餃", "燒賣", "粉果", "腸粉", "蘿蔔糕", "車仔麵", "雲吞麵", "牛腩麵", "乾炒牛河", "魚蛋",
   "雞蛋", "雞蛋仔", "格仔餅", "碗仔翅", "臭豆腐", "豆腐花", "茶餐廳", "酒樓", "冰室", "點心",
@@ -175,6 +176,16 @@ const fallbackWords = [
   "小巴", "地鐵", "電車", "的士", "渡輪", "飛機", "單車", "馬路", "車站", "手機",
   "世界", "界限", "街市", "解釋", "歷史", "時間", "空間", "社會", "經濟", "文化"
 ];
+
+// 手動補強常見廣東話同音/近音字對應表（確保萬無一失）
+const customHomophoneMap = {
+  '莊': ['zong'], '裝': ['zong'], '葬': ['zong'], '藏': ['zong', 'cong'],
+  '界': ['gaai'], '街': ['gaai'], '解': ['gaai'], '介': ['gaai'], '雞': ['gai'],
+  '世': ['sai'], '細': ['sai'], '西': ['sai'], '茜': ['sai'],
+  '下': ['haa'], '夏': ['haa'], '蝦': ['haa'],
+  '形': ['jing'], '型': ['jing'], '迎': ['jing'], '贏': ['jing'],
+  '長': ['coeng', 'zoeng'], '場': ['coeng']
+};
 
 window.addEventListener('DOMContentLoaded', () => {
   loadDictionary();
@@ -218,7 +229,7 @@ function parseAndSetWords(rawList, sourceMsg) {
   document.getElementById('box').innerText = "點擊「開始遊戲」啟動對戰！";
 }
 
-// 廣東話「同音」與「大約近音」的核心判定機制
+// 🎯 廣東話同音與近音判定演算法
 function getJyutpingList(char) {
   if (window.ToJyutping) {
     try {
@@ -233,15 +244,26 @@ function parseJyutping(jpStr) {
   if (!jpStr) return { base: "", tone: "" };
   let match = jpStr.match(/^([a-z]+)([1-6]?)$/i);
   if (match) {
-    let base = match[1].toLowerCase().replace(/^l/, 'n'); 
+    let base = match[1].toLowerCase()
+      .replace(/^l/, 'n')
+      .replace(/^z/, 'z')
+      .replace(/^c/, 'z'); // 容許 c/z 相近音
     return { base: base, tone: match[2] };
   }
   return { base: jpStr.toLowerCase(), tone: "" };
 }
 
 function isHomophoneOrNearSound(char1, char2) {
-  if (char1 === char2) return true;
+  if (char1 === char2) return true; // 完全同字
 
+  // 1. 優先比對手動同音字典
+  let custom1 = customHomophoneMap[char1];
+  let custom2 = customHomophoneMap[char2];
+  if (custom1 && custom2) {
+    if (custom1.some(p => custom2.includes(p))) return true;
+  }
+
+  // 2. 透過 ToJyutping 拼音庫進行同音/近音判定
   let list1 = getJyutpingList(char1);
   let list2 = getJyutpingList(char2);
 
@@ -249,9 +271,13 @@ function isHomophoneOrNearSound(char1, char2) {
     let parsed1 = parseJyutping(p1);
     for (let p2 of list2) {
       let parsed2 = parseJyutping(p2);
-      if (p1 === p2 || parsed1.base === parsed2.base) return true;
+      // 完全同音 或 聲母+韻母相同 (無視聲調與懶音)
+      if (p1 === p2 || parsed1.base === parsed2.base) {
+        return true;
+      }
     }
   }
+
   return false;
 }
 
